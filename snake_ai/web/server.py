@@ -27,6 +27,7 @@ from urllib.parse import parse_qs, urlparse
 import numpy as np
 
 from ..persistence import checkpoint, export_torch
+from ..telemetry.history import lineage_summaries
 
 if TYPE_CHECKING:  # the trainer imports this module, so keep the edge one-way
     from ..trainer import Trainer
@@ -160,7 +161,7 @@ class DashboardServer:
         report = export_torch.build_report(
             generation=resolved,
             genome=genome,
-            summaries=self.trainer.history.summaries(),
+            summaries=lineage_summaries(self.trainer.run_dir),
             config=self.trainer.config,
             architecture=self.trainer.population.architecture,
             feature_spec=self.trainer.population.feature_spec,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 
 import numpy as np
 import pytest
@@ -10,7 +11,7 @@ import pytest
 from snake_ai.config import CONFIG
 from snake_ai.evolution.population import Population
 from snake_ai.persistence import checkpoint, export_torch
-from snake_ai.telemetry.history import HistoryStore
+from snake_ai.telemetry.history import HistoryStore, lineage_summaries
 from snake_ai.web.control import TrainingGate
 
 
@@ -110,6 +111,24 @@ def test_history_pins_record_generations(small_config, tmp_path):
     available = set(store.available())
     for generation in record_generations:
         assert generation in available, "record generations must survive eviction"
+
+
+def test_lineage_follows_resumed_runs(tmp_path):
+    def make_run(name, generations, resumed_from=None):
+        run_dir = tmp_path / name
+        run_dir.mkdir()
+        (run_dir / "run.json").write_text(json.dumps({"resumed_from": resumed_from}))
+        lines = [json.dumps({"generation": g}) for g in generations]
+        (run_dir / "history.jsonl").write_text("\n".join(lines) + "\n")
+        return run_dir
+
+    # the first run went two generations past the checkpoint the second resumed from
+    make_run("first", range(0, 12))
+    make_run("second", range(10, 20), "runs\\first\\checkpoints\\latest.npz")
+    third = make_run("third", range(20, 25), "runs/second/checkpoints/latest.npz")
+
+    assert [s["generation"] for s in lineage_summaries(third)] == list(range(25))
+    assert [s["generation"] for s in lineage_summaries(tmp_path / "first")] == list(range(12))
 
 
 def test_export_report_writes_nothing(small_config, tmp_path):

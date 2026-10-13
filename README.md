@@ -59,6 +59,7 @@ snake_ai/
   telemetry/         generation history and console reporting
   web/               dashboard server, hold gate, static frontend
 tests/               game rules, features, fitness, evolution, persistence, held-out scoring
+models/              the best model so far, as .pt with its .json sidecar
 runs/                per-run output (gitignored)
 exports/             exported models (gitignored)
 ```
@@ -93,7 +94,7 @@ sees a dead end. Two earlier encodings are kept for comparison; on 60 held-out
 seeds after 60 generations their champions score 46.2 (`egocentric_v3`), 36.4
 (`egocentric_v2`) and 19.6 (`egocentric_v1`), each faster and worse than the one
 above it. The best model so far comes from a longer `egocentric_v3` run and
-averages 81.5 on the same seeds; HISTORY.md has the details.
+averages 81.5 on the same seeds. It is in `models/`, and HISTORY.md has the details.
 
 **Two rules keep selection honest.**
 

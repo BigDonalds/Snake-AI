@@ -22,6 +22,7 @@ from .held_out import (
     run_context,
 )
 from .persistence import checkpoint, export_torch
+from .telemetry.history import lineage_summaries
 from .telemetry.reporter import ConsoleReporter
 from .trainer import Trainer
 from .web.server import DashboardServer
@@ -232,15 +233,16 @@ def command_export(args: argparse.Namespace) -> int:
     architecture = Architecture.from_dict(population_meta["architecture"])
     spec = FeatureSpec(population_meta["feature_spec"], config.features)
     destination = config.paths.exports_dir / f"{args.name}.pt"
+    run_dir = path.parent.parent
 
     report = export_torch.build_report(
         generation=int(population_meta.get("generation", 0)),
         genome=genome,
-        summaries=[],
+        summaries=lineage_summaries(run_dir),
         config=config,
         architecture=architecture,
         feature_spec=spec,
-        run_id=path.parent.parent.name,
+        run_id=run_dir.name,
         destination=destination,
     )
     if selection:

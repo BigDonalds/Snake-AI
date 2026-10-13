@@ -252,6 +252,11 @@ the 10,000-step cap that picked a 44.1 snake while the same population held an
 recorded in the export's `.json` sidecar under `selection`, and its figures are
 optimistic -- score the result with `evaluate` for an honest number.
 
+The sidecar's training statistics and achievements cover the whole lineage. A
+resumed run starts a new directory, so the export follows `resumed_from` back
+through each `run.json` and counts every generation behind the model, not only
+the ones the last run played.
+
 ## Dashboard
 
 <http://127.0.0.1:8765>

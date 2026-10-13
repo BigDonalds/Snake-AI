@@ -23,7 +23,7 @@ import gzip
 import json
 import threading
 from collections import OrderedDict
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from ..config import HistoryConfig
 from ..evolution.individual import Individual
@@ -137,20 +137,8 @@ class HistoryStore:
     # ------------------------------------------------------------------ loading
 
     def _load_summaries(self) -> None:
-        if not self.summary_path.exists():
-            return
-        with self.summary_path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                self._summaries.append(entry)
-                if entry.get("record"):
-                    self._pinned.add(int(entry["generation"]))
+        self._summaries = read_summaries(self.summary_path)
+        self._pinned = {int(e["generation"]) for e in self._summaries if e.get("record")}
 
     def _replay_path(self, generation: int) -> Path:
         return self.replay_dir / f"gen_{generation:06d}.json.gz"
@@ -264,6 +252,63 @@ class HistoryStore:
             if not self._summaries:
                 return (0, 0)
             return (self._summaries[0]["generation"], self._summaries[-1]["generation"])
+
+
+def read_summaries(path: Path) -> list[dict]:
+    """Parse a history.jsonl, skipping blank and damaged lines."""
+    if not path.exists():
+        return []
+    summaries = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                summaries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return summaries
+
+
+def lineage_summaries(run_dir: Path) -> list[dict]:
+    """Summaries for a run and every run it was resumed from, oldest first.
+
+    Resuming starts a new run directory whose history.jsonl begins at the
+    checkpoint's generation, so the generations before it live in the parent
+    runs. Where a parent ran past the point its child resumed from, the child's
+    entries win.
+    """
+    merged: list[dict] = []
+    seen: set[str] = set()
+    current: Path | None = run_dir
+    while current is not None and current.name not in seen:
+        seen.add(current.name)
+        own = read_summaries(current / "history.jsonl")
+        if merged:
+            own = [s for s in own if s["generation"] < merged[0]["generation"]]
+        merged = own + merged
+        current = _parent_run(current)
+    return merged
+
+
+def _parent_run(run_dir: Path) -> Path | None:
+    """The run a resumed run started from, looked up next to it by name.
+
+    `resumed_from` is stored relative to wherever training was launched, and
+    may use Windows separators, so only the run's directory name is trusted.
+    """
+    try:
+        manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    source = manifest.get("resumed_from")
+    if not source:
+        return None
+    # runs/<run>/checkpoints/<file>.npz
+    name = PureWindowsPath(source).parent.parent.name
+    parent = run_dir.parent / name
+    return parent if name and parent.is_dir() else None
 
 
 def agent_payload(individual: Individual, result: EpisodeResult, max_steps: int) -> dict:
